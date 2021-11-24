@@ -246,8 +246,8 @@ class Main extends Phaser.Scene
 
     update(t, dt) {
         this.updateTileHeights(t, dt)
-        let [q, r] = this.pixel_to_hex(this.px, this.py);
-        let tile = this.getTile(new Hex(q, r))
+        let hex = this.grid.pointToHex(this.px, this.py);
+        let tile = this.getTile(hex)
         var tz = 0
         if (tile !== undefined) {
             tz = tile.frame.name
@@ -264,8 +264,8 @@ class Main extends Phaser.Scene
         this.shadow.x = this.px - 1
         this.shadow.y = this.py + 4 - tz
         this.shadow.scale = (30 - (this.pz - tz)) / 30.0
-        this.cube.setDepth(r*10 + 2)
-        this.shadow.setDepth(r*10 + 1)
+        this.cube.setDepth(hex.r*10 + 2)
+        this.shadow.setDepth(hex.r*10 + 1)
        //console.log('q,r:', q, ',', r, 'tz: ', tz, 'pz: ', this.pz, 'tile: ', tile)
     }
 
@@ -316,14 +316,6 @@ class Main extends Phaser.Scene
             t.setData('z', z);
             t.setFrame(Math.round(z));
         }
-    }
-
-    pixel_to_hex(x, y) {
-        var dx = x - this.cx
-        var dy = y - this.cy
-        var q = Math.round(dx / 24)
-        var r = Math.round((dy - 8 * q) / 16)
-        return [q,r]
     }
 
     getTile(hex) {
