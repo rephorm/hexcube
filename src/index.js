@@ -250,7 +250,7 @@ class Main extends Phaser.Scene
        //console.log('q,r:', q, ',', r, 'tz: ', tz, 'pz: ', this.pz, 'tile: ', tile)
     }
 
-    updateForces(h, t, seen) {
+    updateSpringForces(h, t, seen) {
         if (seen.has(h.key())) return;
         let z = t.getData('z')
         seen.add(h.key())
@@ -261,7 +261,7 @@ class Main extends Phaser.Scene
             let df = -dz * this.springConstant;
             t.setData('force', t.getData('force') + df)
             nt.setData('force', nt.getData('force') - df)
-            this.updateForces(n, nt, seen)
+            this.updateSpringForces(n, nt, seen)
         }
     }
 
@@ -277,7 +277,7 @@ class Main extends Phaser.Scene
         }
 
         let h0 = new Hex(0, 0);
-        this.updateForces(h0, this.getTile(h0), seen);
+        this.updateSpringForces(h0, this.getTile(h0), seen);
 
         // Apply forces.
         for (let [h, t] of this.tiles) {
