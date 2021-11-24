@@ -17,8 +17,6 @@
  *  
  */
 
-import Phaser from 'phaser';
-
 export class Hex {
     q
     r
@@ -52,7 +50,7 @@ export class Hex {
     }
 
     key() {
-        return `${q},${r}`
+        return `${this.q},${this.r}`
     }
 }
 export class HexGrid {
@@ -77,19 +75,19 @@ export class HexGrid {
     }
 
     neighbors(hex) {
-        return this.neighborOffsets.map((off) => hex + off);
+        return this.neighborOffsets.map((off) => hex.add(off));
     }
 
     center(hex) {
-        return new Phaser.Geom.Point(
+        return [
             this.width * hex.q * 3/4.0,
-            this.height * (hex.q + hex.r / 2.0),
-        )
+            this.height * (hex.r + hex.q / 2.0),
+        ]
     }
    
-    pointToHex(p) {
-        var q = p.x / this.width * 4 / 3.0 
-        var r = (y / this.height - q) * 2
-        return new Hex(q, r)
+    pointToHex(x, y) {
+        var q = x / this.width * 4 / 3.0 
+        var r = (y / this.height - q/2.0)
+        return new Hex(Math.round(q), Math.round(r))
     }
 }
