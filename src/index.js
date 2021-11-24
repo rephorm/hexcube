@@ -16,9 +16,17 @@ class Main extends Phaser.Scene
     cx = 0
     cy = 0
 
+    grid = new HexGrid(32, 16)
     tiles = new Map()
 
     inputDisabled = false
+
+    springEnabled = true
+    springConstant = 0.00001;
+    damping = 0.97;
+
+    mode = 0
+    modeText
 
     constructor ()
     {
@@ -37,8 +45,9 @@ class Main extends Phaser.Scene
         })
     }
       
-    create ()
+    create()
     {
+        this.cameras.main.centerOn(0, 0)
         var frames = this.anims.generateFrameNumbers('hextile', {start: 0, end: 17})
         //this.anims.generateFrameNumbers('hextile', {start: 16, end: 1, outputArray: frames});
         this.anims.create({
@@ -85,34 +94,33 @@ class Main extends Phaser.Scene
             frameRate: 8,
             repeat: -1,
         })
-        var cx = this.scale.width / 2
-        var cy = this.scale.height / 2
-        this.cx = cx
-        this.cy = cy
         for (var q = -10; q < 10; q++) {
             for (var r = -30; r < 30; r++) {
-                var s = -(q + r);
-                var d = Math.max(Math.abs(q), Math.abs(r), Math.abs(s))
-                if (d > 10) continue;
-                var x = cx + 24 * q ;
-                var y = cy + 16 * r + 8*q;
-                var frame = Phaser.Math.Between(0, 14)
-                frame = 0
-                var o = this.add.sprite(x, y, 'hextile', Math.floor(frame))
-                this.tiles.set(`${q},${r}`, o)
+                var h = new Hex(q, r)
+                if (h.mag() > 10) continue;
+                var [x, y] = this.grid.center(h);
+                var o = this.add.sprite(x, y-2, 'hextile', h.mag());
+                o.setData('hex', h);
+                o.setData('vz', 0);
+                o.setData('z', 9 + 6 * Math.sin(h.mag() * Math.PI / 4));
                 o.setDepth(r*10)
+                this.tiles.set(h.key(), o)
                 //o.play({key: 'raise', delay: 1000/8.0 * (d+0.5*Math.abs(q))})
             }
         }
 
-        this.px = cx
-        this.py = cy
+        this.px = 0
+        this.py = 0
         this.pz = 0
         this.cube = this.add.sprite(this.px, this.py + this.pz, 'cube', 0);
         this.cube.play('up-right');
         this.cube.setDepth(100)
 
+        this.modeText = this.add.text(-this.scale.width/2, -this.scale.height/2, "Mode: 0", {color: '#333'})
+        this.modeText.setDepth(1000)
+
         this.setupInput()
+        this.setMode(0)
     }
 
     setupInput() {
@@ -140,40 +148,87 @@ class Main extends Phaser.Scene
                 this.handleMove(keys[dir])
             }
         })
+
+        this.input.keyboard.on('keydown-M', this.nextMode, this)
+        this.modeText.setInteractive()
+        this.modeText.on('pointerup', this.nextMode, this)
         console.log(this.tiles)
 
         this.shadow = this.add.ellipse(this.px, this.py + 2, 16, 8, 0x444444, 0.5)
         this.shadow.setDepth(99)
     }
-    handleMove(info) {
-                if (this.inputDisabled) return
-                console.log("handle key: ", info.key);
-                this.inputDisabled = true
-                var duration = 50
-                this.cube.play(info.anim);
-                this.tweens.add({
-                    targets: this,
-                    duration: duration,
-                    ease: 'Sine',
-                    px: this.px + info.move.dx,
-                    py: this.py + info.move.dy,
-                })
-                this.tweens.add({
-                    targets: this,
-                    duration: duration,
-                    pz: this.pz + 10,
-                    yoyo: true,
-                    ease: 'Sine',
-                    onComplete: () => {
-                        console.log("enable input");
-                        this.inputDisabled = false;
-                    } 
-                })
+
+    nextMode() {
+      this.setMode((this.mode + 1) % 2)
     }
 
-    update(dt) {
+    setMode(mode) {
+        let modes = [
+            {
+                name: 'springy',
+                springEnabled: true,
+                animate: false,
+            },
+            {
+                name: 'pulse',
+                springEnabled: false,
+                animate: true,
+                delay: (hex) => {
+                   return 1000 / 8.0 * (hex.mag() + 0.5 * Math.abs(hex.q))
+                },
+            },
+        ]
+        this.mode = mode
+        let info = modes[this.mode]
+        this.springEnabled = info.springEnabled
+        for (let [key, tile] of this.tiles) {
+            let hex = tile.getData('hex')
+            if (info.animate) {
+                tile.playAfterDelay('raise', info.delay(hex))
+            } else {
+                tile.stop()
+            }
+        }
+      this.modeText.text = `Mode: ${info.name}`
+    }
+    handleMove(info) {
+        if (this.inputDisabled) return
+        console.log("handle key: ", info.key);
+        this.inputDisabled = true
+        var duration = 50
+        this.cube.play(info.anim);
+        this.tweens.add({
+            targets: this,
+            duration: duration,
+            ease: 'Sine',
+            px: this.px + info.move.dx,
+            py: this.py + info.move.dy,
+        })
+        let h = this.grid.pointToHex(this.px + info.move.dx, this.py + info.move.dy);
+        let t = this.getTile(h);
+        this.tweens.add({
+            targets: this,
+            duration: duration,
+            pz: this.pz + 10,
+            yoyo: true,
+            ease: 'Sine',
+            onComplete: () => {
+                console.log("enable input");
+                this.inputDisabled = false;
+                if (t !== undefined && this.springEnabled) {
+                    console.log("dip")
+                    t.setData('z', t.getData('z') - 7)
+                }
+            }
+        })
+
+
+    }
+
+    update(t, dt) {
+        this.updateTileHeights(dt)
         let [q, r] = this.pixel_to_hex(this.px, this.py);
-        let tile = this.get_tile(q, r)
+        let tile = this.getTile(new Hex(q, r))
         var tz = 0
         if (tile !== undefined) {
             tz = tile.frame.name
@@ -195,6 +250,51 @@ class Main extends Phaser.Scene
        //console.log('q,r:', q, ',', r, 'tz: ', tz, 'pz: ', this.pz, 'tile: ', tile)
     }
 
+    updateForces(h, t, seen) {
+        if (seen.has(h.key())) return;
+        let z = t.getData('z')
+        seen.add(h.key())
+        for (let n of this.grid.neighbors(h)) {
+            let nt = this.getTile(n);
+            if (nt === undefined) continue;
+            let dz = z - nt.getData('z')
+            let df = -dz * this.springConstant;
+            t.setData('force', t.getData('force') + df)
+            nt.setData('force', nt.getData('force') - df)
+            this.updateForces(n, nt, seen)
+        }
+    }
+
+
+    updateTileHeights(dt) {
+        if (!this.springEnabled) return;
+        console.log('update heights')
+        // Iterate over all neighboring pairs.
+        let seen = new Set()
+
+        for (let [h, t] of this.tiles) {
+            t.setData('force', 0);
+        }
+
+        let h0 = new Hex(0, 0);
+        this.updateForces(h0, this.getTile(h0), seen);
+
+        // Apply forces.
+        for (let [h, t] of this.tiles) {
+            let f  = t.getData('force');
+            let vz = t.getData('vz');
+            let z = t.getData('z');
+            vz += f * dt;
+            z += vz * dt;
+            vz *= this.damping;
+            if (z <= 0) z = 0;
+            if (z > 16) z = 16;
+            t.setData('vz', vz);
+            t.setData('z', z);
+            t.setFrame(Math.floor(z));
+        }
+    }
+
     pixel_to_hex(x, y) {
         var dx = x - this.cx
         var dy = y - this.cy
@@ -203,8 +303,8 @@ class Main extends Phaser.Scene
         return [q,r]
     }
 
-    get_tile(q, r) {
-        return this.tiles.get(`${q},${r}`)
+    getTile(hex) {
+        return this.tiles.get(hex.key())
     }
 }
 
