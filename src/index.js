@@ -24,6 +24,7 @@ class Main extends Phaser.Scene
     springEnabled = true
     springConstant = 0.00001;
     damping = 0.97;
+    forcingFunc
 
     mode = 0
     modeText
@@ -48,7 +49,7 @@ class Main extends Phaser.Scene
     create()
     {
         this.cameras.main.centerOn(0, 0)
-        var frames = this.anims.generateFrameNumbers('hextile', {start: 0, end: 17})
+        var frames = this.anims.generateFrameNumbers('hextile', {start: 0, end: 16})
         //this.anims.generateFrameNumbers('hextile', {start: 16, end: 1, outputArray: frames});
         this.anims.create({
             key: 'raise',
@@ -101,7 +102,7 @@ class Main extends Phaser.Scene
                 var [x, y] = this.grid.center(h);
                 var o = this.add.sprite(x, y-2, 'hextile', h.mag());
                 o.setData('hex', h);
-                o.setData('vz', 0);
+                o.setData('vz', 4);
                 o.setData('z', 9 + 6 * Math.sin(h.mag() * Math.PI / 4));
                 o.setDepth(r*10)
                 this.tiles.set(h.key(), o)
@@ -159,11 +160,28 @@ class Main extends Phaser.Scene
     }
 
     nextMode() {
-      this.setMode((this.mode + 1) % 2)
+      this.setMode((this.mode + 1) % 3)
     }
 
     setMode(mode) {
         let modes = [
+            {
+                name: 'wavy',
+                springEnabled: true,
+                animate: false,
+                forcingFunc: (hex, t) => {
+                    return Math.sin(Math.PI * (t / 500 + hex.q / 8))  * 0.0002
+                    //return hex.mag() * Math.sin(Math.PI * (t/500 + (hex.mag() + 0.5 * Math.abs(hex.q))/5)) * 0.00002
+                }
+            },
+            {
+                name: 'radial',
+                springEnabled: true,
+                animate: false,
+                forcingFunc: (hex, t) => {
+                    return Math.sin(Math.PI * (t / 500 + hex.mag() / 8))  * 0.0002
+                }
+            },
             {
                 name: 'springy',
                 springEnabled: true,
@@ -181,6 +199,7 @@ class Main extends Phaser.Scene
         this.mode = mode
         let info = modes[this.mode]
         this.springEnabled = info.springEnabled
+        this.forcingFunc = info.forcingFunc
         for (let [key, tile] of this.tiles) {
             let hex = tile.getData('hex')
             if (info.animate) {
@@ -226,7 +245,7 @@ class Main extends Phaser.Scene
     }
 
     update(t, dt) {
-        this.updateTileHeights(dt)
+        this.updateTileHeights(t, dt)
         let [q, r] = this.pixel_to_hex(this.px, this.py);
         let tile = this.getTile(new Hex(q, r))
         var tz = 0
@@ -266,14 +285,18 @@ class Main extends Phaser.Scene
     }
 
 
-    updateTileHeights(dt) {
+    updateTileHeights(t, dt) {
         if (!this.springEnabled) return;
-        console.log('update heights')
         // Iterate over all neighboring pairs.
         let seen = new Set()
 
-        for (let [h, t] of this.tiles) {
-            t.setData('force', 0);
+        for (let [k, tile] of this.tiles) {
+            let f = 0;
+            let h = tile.getData('hex');
+            if (this.forcingFunc !== undefined) {
+                f = this.forcingFunc(h, t);
+            }
+            tile.setData('force', f);
         }
 
         let h0 = new Hex(0, 0);
@@ -287,11 +310,11 @@ class Main extends Phaser.Scene
             vz += f * dt;
             z += vz * dt;
             vz *= this.damping;
-            if (z <= 0) z = 0;
+            if (z < 0) z = 0;
             if (z > 16) z = 16;
             t.setData('vz', vz);
             t.setData('z', z);
-            t.setFrame(Math.floor(z));
+            t.setFrame(Math.round(z));
         }
     }
 
