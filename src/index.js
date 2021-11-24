@@ -116,20 +116,40 @@ class Main extends Phaser.Scene
         this.cube.play('up-right');
         this.cube.setDepth(100)
 
-        this.handleKeys()
+        this.setupInput()
     }
 
-    handleKeys() {
+    setupInput() {
         var keys = [
-            {key: 'W', anim: 'up', move: {dx: 0, dy: -15}},
-            {key: 'Q', anim: 'up-left', move: {dx: -24, dy: -8}},
-            {key: 'E', anim: 'up-right', move: {dx: 24, dy: -7}},
+            {key: 'D', anim: 'down-right', move: {dx: 24, dy: 8}},
             {key: 'S', anim: 'down', move: {dx: 0, dy: 15}},
             {key: 'A', anim: 'down-left', move: {dx: -24, dy: 7}},
-            {key: 'D', anim: 'down-right', move: {dx: 24, dy: 8}},
+            {key: 'Q', anim: 'up-left', move: {dx: -24, dy: -8}},
+            {key: 'W', anim: 'up', move: {dx: 0, dy: -15}},
+            {key: 'E', anim: 'up-right', move: {dx: 24, dy: -7}},
         ];
         for (let info of keys) {
             this.input.keyboard.on('keydown-'+info.key, ()=>{
+                this.handleMove(info)
+            })
+        }
+        this.input.on('pointerup', (e) => {
+            var swipeTime = e.upTime - e.downTime;
+            var swipe = new Phaser.Geom.Point(e.upX - e.downX, e.upY - e.downY);
+            var swipeMagnitude = Phaser.Geom.Point.GetMagnitude(swipe);
+            var swipeNormal = new Phaser.Math.Vector2(swipe.x / swipeMagnitude, swipe.y / swipeMagnitude);
+            var angle = swipeNormal.angle()
+            var dir = Math.floor(angle / Math.PI * 3)
+            if (swipeMagnitude > 20 && swipeTime < 1000 && (Math.abs(swipeNormal.y) > 0.8 || Math.abs(swipeNormal.x) > 0.8)) {
+                this.handleMove(keys[dir])
+            }
+        })
+        console.log(this.tiles)
+
+        this.shadow = this.add.ellipse(this.px, this.py + 2, 16, 8, 0x444444, 0.5)
+        this.shadow.setDepth(99)
+    }
+    handleMove(info) {
                 if (this.inputDisabled) return
                 console.log("handle key: ", info.key);
                 this.inputDisabled = true
@@ -153,12 +173,6 @@ class Main extends Phaser.Scene
                         this.inputDisabled = false;
                     } 
                 })
-            })
-        }
-        console.log(this.tiles)
-
-        this.shadow = this.add.ellipse(this.px, this.py + 2, 16, 8, 0x444444, 0.5)
-        this.shadow.setDepth(99)
     }
 
     update(dt) {
@@ -179,7 +193,7 @@ class Main extends Phaser.Scene
         this.cube.y = this.py - this.pz
         this.shadow.x = this.px - 1
         this.shadow.y = this.py + 4 - tz
-        this.shadow.scale = (30 - this.pz) / 30.0
+        this.shadow.scale = (30 - (this.pz - tz)) / 30.0
         this.cube.setDepth(r*10 + 2)
         this.shadow.setDepth(r*10 + 1)
        //console.log('q,r:', q, ',', r, 'tz: ', tz, 'pz: ', this.pz, 'tile: ', tile)
