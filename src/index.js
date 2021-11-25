@@ -126,12 +126,12 @@ class Main extends Phaser.Scene
 
     setupInput() {
         var keys = [
-            {key: 'D', anim: 'down-right', move: {dh: new Hex(1, 0), dx: 24, dy: 8}},
-            {key: 'S', anim: 'down', move: {dh: new Hex(0, 1), dx: 0, dy: 16}},
-            {key: 'A', anim: 'down-left', move: {dh: new Hex(-1, 1), dx: -24, dy: 8}},
-            {key: 'Q', anim: 'up-left', move: {dh: new Hex(-1, 0), dx: -24, dy: -8}},
-            {key: 'W', anim: 'up', move: {dh: new Hex(0, -1), dx: 0, dy: -16}},
-            {key: 'E', anim: 'up-right', move: {dh: new Hex(1, -1), dx: 24, dy: -8}},
+            {key: 'D', anim: 'down-right', dh: new Hex(1, 0)},
+            {key: 'S', anim: 'down', dh: new Hex(0, 1)},
+            {key: 'A', anim: 'down-left', dh: new Hex(-1, 1)},
+            {key: 'Q', anim: 'up-left', dh: new Hex(-1, 0)},
+            {key: 'W', anim: 'up', dh: new Hex(0, -1)},
+            {key: 'E', anim: 'up-right', dh: new Hex(1, -1)},
         ];
         for (let info of keys) {
             this.input.keyboard.on('keydown-'+info.key, ()=>{
@@ -217,8 +217,7 @@ class Main extends Phaser.Scene
         var duration = 50
         this.cube.play(info.anim);
         let ohex = this.grid.pointToHex(this.px, this.py);
-        console.log(ohex, info.move.dh);
-        let nhex = ohex.add(info.move.dh);
+        let nhex = ohex.add(info.dh);
         let [nx, ny] = this.grid.center(nhex)
         this.tweens.add({
             targets: this,
