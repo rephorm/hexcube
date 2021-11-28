@@ -99,14 +99,7 @@ class Main extends Phaser.Scene
             for (var r = -30; r < 30; r++) {
                 var h = new Hex(q, r)
                 if (h.mag() > 10) continue;
-                var [x, y] = this.grid.center(h);
-                var o = this.add.sprite(x, y-2, 'hextile', h.mag());
-                o.setData('hex', h);
-                o.setData('vz', 4);
-                o.setData('z', 9 + 6 * Math.sin(h.mag() * Math.PI / 4));
-                o.setDepth(r*10)
-                this.tiles.set(h.key(), o)
-                //o.play({key: 'raise', delay: 1000/8.0 * (d+0.5*Math.abs(q))})
+                this.addTile(h, false)
             }
         }
 
@@ -122,6 +115,8 @@ class Main extends Phaser.Scene
 
         this.setupInput()
         this.setMode(0)
+
+        this.cameras.main.startFollow(this.cube, true, 0.05)
     }
 
     setupInput() {
@@ -246,7 +241,76 @@ class Main extends Phaser.Scene
             }
         })
 
+        this.updateMap(nhex);
+    }
 
+    updateMap(hex) {
+        let seen = new Map()
+        let toDelete = [] // list of keys
+        let toAdd = [] // list of hexes
+        for (let [k, tile] of this.tiles) {
+            let ohex = tile.getData('hex')
+            if (hex.dist(ohex) > 10) {
+                toDelete.push(k)
+            } else {
+                for (let nhex of this.grid.neighbors(ohex)) {
+                    if (this.tiles.get(nhex.key()) === undefined && hex.dist(nhex) <= 10) {
+                        toAdd.push(nhex)
+                    }
+                }
+            }
+        }
+
+        for (let key of toDelete) {
+            this.deleteTile(key)
+        }
+
+        for (let nhex of toAdd) {
+            this.addTile(nhex, true)
+        }
+    }
+
+    deleteTile(key) {
+        var tile = this.tiles.get(key)
+        if (tile === undefined) return
+        let phex = this.grid.pointToHex(this.px, this.py);
+        let hex = tile.getData('hex')
+        let dhex = phex.sub(hex)
+        this.tiles.delete(key)
+        this.tweens.add({
+            targets: tile,
+            y: this.py + this.scale.height / 2,
+            alpha: 0,
+            delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
+            duration: 100,
+            onComplete: () => {
+                tile.destroy()
+            },
+            ease: 'Power2',
+        })
+    }
+
+    addTile(hex) {
+        if (this.tiles.get(hex.key()) !== undefined) return
+        var [x, y] = this.grid.center(hex);
+        var o = this.add.sprite(x, this.py + this.scale.height / 2, 'hextile', 7);
+        let phex = this.grid.pointToHex(this.px, this.py);
+        let dhex = phex.sub(hex)
+        o.setAlpha(0)
+        o.setData('hex', hex);
+        o.setData('vz', 0);
+        o.setData('z', 7);
+        o.setDepth(hex.r * 10 + hex.q)
+        this.tiles.set(hex.key(), o)
+        this.tweens.add({
+            targets: o,
+            alpha: 1.0,
+            y: y - 2,
+            duration: 100,
+            delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
+            ease: 'Sine',
+        })
+        //o.play({key: 'raise', delay: 1000/8.0 * (d+0.5*Math.abs(q))})
     }
 
     update(t, dt) {
@@ -269,8 +333,8 @@ class Main extends Phaser.Scene
         this.shadow.x = this.px - 1
         this.shadow.y = this.py + 4 - tz
         this.shadow.scale = (30 - (this.pz - tz)) / 30.0
-        this.cube.setDepth(hex.r*10 + 2)
-        this.shadow.setDepth(hex.r*10 + 1)
+        this.cube.setDepth(hex.r*10  + hex.q + 2)
+        this.shadow.setDepth(hex.r*10 + hex.q + 1)
        //console.log('q,r:', q, ',', r, 'tz: ', tz, 'pz: ', this.pz, 'tile: ', tile)
     }
 
@@ -304,8 +368,9 @@ class Main extends Phaser.Scene
             tile.setData('force', f);
         }
 
-        let h0 = new Hex(0, 0);
-        this.updateSpringForces(h0, this.getTile(h0), seen);
+        var tile0 = this.tiles.values().next().value
+        var h0 = tile0.getData('hex')
+        this.updateSpringForces(h0, tile0, seen);
 
         // Apply forces.
         for (let [h, t] of this.tiles) {
