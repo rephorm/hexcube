@@ -17,13 +17,14 @@ class Main extends Phaser.Scene
     cy = 0
 
     grid = new HexGrid(32, 16)
+    maxSize = 30
     tiles = new Map()
 
     inputDisabled = false
 
     springEnabled = true
     springConstant = 0.00001;
-    damping = 0.97;
+    damping = 0.95;
     forcingFunc
 
     mode = 0
@@ -95,10 +96,10 @@ class Main extends Phaser.Scene
             frameRate: 8,
             repeat: -1,
         })
-        for (var q = -10; q < 10; q++) {
-            for (var r = -30; r < 30; r++) {
+        for (var q = -this.maxSize; q <= this.maxSize; q++) {
+            for (var r = -this.maxSize; r <= this.maxSize; r++) {
                 var h = new Hex(q, r)
-                if (h.mag() > 10) continue;
+                if (h.mag() > this.maxSize) continue;
                 this.addTile(h, false)
             }
         }
@@ -116,7 +117,7 @@ class Main extends Phaser.Scene
         this.setupInput()
         this.setMode(0)
 
-        this.cameras.main.startFollow(this.cube, true, 0.05)
+        this.cameras.main.startFollow(this.cube, false, 0.05)
     }
 
     setupInput() {
@@ -250,11 +251,11 @@ class Main extends Phaser.Scene
         let toAdd = [] // list of hexes
         for (let [k, tile] of this.tiles) {
             let ohex = tile.getData('hex')
-            if (hex.dist(ohex) > 10) {
+            if (hex.dist(ohex) > this.maxSize) {
                 toDelete.push(k)
             } else {
                 for (let nhex of this.grid.neighbors(ohex)) {
-                    if (this.tiles.get(nhex.key()) === undefined && hex.dist(nhex) <= 10) {
+                    if (this.tiles.get(nhex.key()) === undefined && hex.dist(nhex) <= this.maxSize) {
                         toAdd.push(nhex)
                     }
                 }
@@ -277,39 +278,40 @@ class Main extends Phaser.Scene
         let hex = tile.getData('hex')
         let dhex = phex.sub(hex)
         this.tiles.delete(key)
-        this.tweens.add({
-            targets: tile,
-            y: this.py + this.scale.height / 2,
-            alpha: 0,
-            delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
-            duration: 100,
-            onComplete: () => {
-                tile.destroy()
-            },
-            ease: 'Power2',
-        })
+        tile.destroy()
+        //this.tweens.add({
+        //    targets: tile,
+        //    y: this.py + this.scale.height / 2,
+        //    alpha: 0,
+        //    delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
+        //    duration: 100,
+        //    onComplete: () => {
+        //        tile.destroy()
+        //    },
+        //    ease: 'Power2',
+        //})
     }
 
     addTile(hex) {
         if (this.tiles.get(hex.key()) !== undefined) return
         var [x, y] = this.grid.center(hex);
-        var o = this.add.sprite(x, this.py + this.scale.height / 2, 'hextile', 7);
+        var tile = this.add.sprite(x, y - 2, 'hextile', 7);
         let phex = this.grid.pointToHex(this.px, this.py);
         let dhex = phex.sub(hex)
-        o.setAlpha(0)
-        o.setData('hex', hex);
-        o.setData('vz', 0);
-        o.setData('z', 7);
-        o.setDepth(hex.r * 10 + hex.q)
-        this.tiles.set(hex.key(), o)
-        this.tweens.add({
-            targets: o,
-            alpha: 1.0,
-            y: y - 2,
-            duration: 100,
-            delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
-            ease: 'Sine',
-        })
+        //tile.setAlpha(0)
+        tile.setData('hex', hex);
+        tile.setData('vz', 0);
+        tile.setData('z', 7);
+        tile.setDepth(hex.r * 10 + hex.q)
+        this.tiles.set(hex.key(), tile)
+        //this.tweens.add({
+        //    targets: tile,
+        //    alpha: 1.0,
+        //    y: y - 2,
+        //    duration: 100,
+        //    delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
+        //    ease: 'Sine',
+        //})
         //o.play({key: 'raise', delay: 1000/8.0 * (d+0.5*Math.abs(q))})
     }
 
