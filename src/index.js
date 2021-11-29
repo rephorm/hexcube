@@ -208,7 +208,6 @@ class Main extends Phaser.Scene
     }
     handleMove(info) {
         if (this.inputDisabled) return
-        console.log("handle key: ", info.key);
         this.inputDisabled = true
         var duration = 50
         this.cube.play(info.anim);
@@ -362,6 +361,19 @@ class Main extends Phaser.Scene
         let seen = new Set()
 
         for (let [k, tile] of this.tiles) {
+            // Update z using previous velocity and force.
+            let vz = tile.getData('vz');
+            let z = tile.getData('z');
+            let pf = tile.getData('force');
+            if (pf === undefined) pf = 0;
+            tile.setData('prevForce', pf)
+            z += (vz * dt + 0.5 * pf * dt * dt);
+            if (z < 0) z = 0;
+            if (z > 16) z = 16;
+            tile.setData('z', z);
+            tile.setFrame(Math.round(z));
+
+            // Calculate new position dependent force.
             let f = 0;
             let h = tile.getData('hex');
             if (this.forcingFunc !== undefined) {
@@ -370,23 +382,19 @@ class Main extends Phaser.Scene
             tile.setData('force', f);
         }
 
+        // DFS to calculate spring forces.
         var tile0 = this.tiles.values().next().value
         var h0 = tile0.getData('hex')
         this.updateSpringForces(h0, tile0, seen);
 
-        // Apply forces.
-        for (let [h, t] of this.tiles) {
-            let f  = t.getData('force');
-            let vz = t.getData('vz');
-            let z = t.getData('z');
-            vz += f * dt;
-            z += vz * dt;
+        // Update velocity
+        for (let [k, tile] of this.tiles) {
+            let pf = tile.getData('prevForce');
+            let f = tile.getData('force');
+            let vz = tile.getData('vz');
+            vz += 0.5 * (f + pf) * dt;
             vz *= this.damping;
-            if (z < 0) z = 0;
-            if (z > 16) z = 16;
-            t.setData('vz', vz);
-            t.setData('z', z);
-            t.setFrame(Math.round(z));
+            tile.setData('vz', vz);
         }
     }
 
