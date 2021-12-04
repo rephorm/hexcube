@@ -162,6 +162,11 @@ class Main extends Phaser.Scene
     setMode(mode) {
         let modes = [
             {
+                name: 'springy',
+                springEnabled: true,
+                animate: false,
+            },
+            {
                 name: 'wavy',
                 springEnabled: true,
                 animate: false,
@@ -177,11 +182,6 @@ class Main extends Phaser.Scene
                 forcingFunc: (hex, t) => {
                     return Math.sin(Math.PI * (t / 500 + hex.mag() / 8))  * 0.0002
                 }
-            },
-            {
-                name: 'springy',
-                springEnabled: true,
-                animate: false,
             },
             {
                 name: 'pulse',
