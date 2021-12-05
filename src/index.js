@@ -3,6 +3,28 @@ import hexTileImg from './assets/hex-tile.png'
 import cubeImg from './assets/cube-angle.png'
 import {Hex, HexGrid} from './hex.js'
 
+class Tile extends Phaser.GameObjects.Sprite {
+    hex
+    z
+    vz
+    force
+    prevForce
+
+    constructor(scene, grid, hex) {
+        super(scene, 0, 0, "hextile");
+        scene.add.existing(this);
+        this.hex = hex;
+
+        let [x, y] = grid.center(hex);
+        this.setPosition(x, y)
+
+        this.z = 8
+        this.vz = 0
+        this.setDepth(hex.r*10 + hex.q)
+        this.setFrame(this.z);
+    }
+}
+
 class Main extends Phaser.Scene
 {
     cube
@@ -197,7 +219,7 @@ class Main extends Phaser.Scene
         this.springEnabled = info.springEnabled
         this.forcingFunc = info.forcingFunc
         for (let [key, tile] of this.tiles) {
-            let hex = tile.getData('hex')
+            let hex = tile.hex;
             if (info.animate) {
                 tile.playAfterDelay('raise', info.delay(hex))
             } else {
@@ -224,7 +246,7 @@ class Main extends Phaser.Scene
         let nz = 0;
         let t = this.getTile(nhex);
         if (t !== undefined) {
-            nz += t.getData('z');
+            nz += t.z;
         }
 
         this.tweens.add({
@@ -236,7 +258,7 @@ class Main extends Phaser.Scene
             onComplete: () => {
                 this.inputDisabled = false;
                 if (t !== undefined && this.springEnabled) {
-                    t.setData('z', t.getData('z') - 7)
+                    t.z -= 7
                 }
             }
         })
@@ -249,7 +271,7 @@ class Main extends Phaser.Scene
         let toDelete = [] // list of keys
         let toAdd = [] // list of hexes
         for (let [k, tile] of this.tiles) {
-            let ohex = tile.getData('hex')
+            let ohex = tile.hex;
             if (hex.dist(ohex) > this.maxSize) {
                 toDelete.push(k)
             } else {
@@ -271,51 +293,20 @@ class Main extends Phaser.Scene
     }
 
     deleteTile(key) {
-        var tile = this.tiles.get(key)
-        if (tile === undefined) return
-        let phex = this.grid.pointToHex(this.px, this.py);
-        let hex = tile.getData('hex')
-        let dhex = phex.sub(hex)
-        this.tiles.delete(key)
-        tile.destroy()
-        //this.tweens.add({
-        //    targets: tile,
-        //    y: this.py + this.scale.height / 2,
-        //    alpha: 0,
-        //    delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
-        //    duration: 100,
-        //    onComplete: () => {
-        //        tile.destroy()
-        //    },
-        //    ease: 'Power2',
-        //})
+        var tile = this.tiles.get(key);
+        if (tile === undefined) return;
+        this.tiles.delete(key);
+        tile.destroy();
     }
 
     addTile(hex) {
-        if (this.tiles.get(hex.key()) !== undefined) return
-        var [x, y] = this.grid.center(hex);
-        var tile = this.add.sprite(x, y - 2, 'hextile', 7);
-        let phex = this.grid.pointToHex(this.px, this.py);
-        let dhex = phex.sub(hex)
-        //tile.setAlpha(0)
-        tile.setData('hex', hex);
-        tile.setData('vz', 0);
-        tile.setData('z', 7);
-        tile.setDepth(hex.r * 10 + hex.q)
-        this.tiles.set(hex.key(), tile)
-        //this.tweens.add({
-        //    targets: tile,
-        //    alpha: 1.0,
-        //    y: y - 2,
-        //    duration: 100,
-        //    delay: Math.abs(dhex.q) * 10 + Math.abs(dhex.r) * 10,
-        //    ease: 'Sine',
-        //})
-        //o.play({key: 'raise', delay: 1000/8.0 * (d+0.5*Math.abs(q))})
+        if (this.tiles.get(hex.key()) !== undefined) return;
+        let tile = new Tile(this, this.grid, hex);
+        this.tiles.set(hex.key(), tile);
     }
 
     update(t, dt) {
-        this.updateTileHeights(t, dt)
+        this.updateTileHeights(t, dt);
         let hex = this.grid.pointToHex(this.px, this.py);
         let tile = this.getTile(hex)
         var tz = 0
@@ -341,15 +332,15 @@ class Main extends Phaser.Scene
 
     updateSpringForces(h, t, seen) {
         if (seen.has(h.key())) return;
-        let z = t.getData('z')
-        seen.add(h.key())
+        let z = t.z;
+        seen.add(h.key());
         for (let n of this.grid.neighbors(h)) {
             let nt = this.getTile(n);
             if (nt === undefined) continue;
-            let dz = z - nt.getData('z')
+            let dz = z - nt.z
             let df = -dz * this.springConstant;
-            t.setData('force', t.getData('force') + df)
-            nt.setData('force', nt.getData('force') - df)
+            t.force += df;
+            nt.force -= df;
             this.updateSpringForces(n, nt, seen)
         }
     }
@@ -362,39 +353,41 @@ class Main extends Phaser.Scene
 
         for (let [k, tile] of this.tiles) {
             // Update z using previous velocity and force.
-            let vz = tile.getData('vz');
-            let z = tile.getData('z');
-            let pf = tile.getData('force');
+            let vz = tile.vz;
+            let z = tile.z;
+            let pf = tile.force;
             if (pf === undefined) pf = 0;
-            tile.setData('prevForce', pf)
+            tile.prevForce = pf;
             z += (vz * dt + 0.5 * pf * dt * dt);
             if (z < 0) z = 0;
             if (z > 16) z = 16;
-            tile.setData('z', z);
+            tile.z = z;
+            if (k == "0,0") {
+                console.log(z)
+            }
             tile.setFrame(Math.round(z));
 
             // Calculate new position dependent force.
             let f = 0;
-            let h = tile.getData('hex');
             if (this.forcingFunc !== undefined) {
-                f = this.forcingFunc(h, t);
+                f = this.forcingFunc(tile.hex, t);
             }
-            tile.setData('force', f);
+            tile.force = f;
         }
 
         // DFS to calculate spring forces.
         var tile0 = this.tiles.values().next().value
-        var h0 = tile0.getData('hex')
+        var h0 = tile0.hex
         this.updateSpringForces(h0, tile0, seen);
 
         // Update velocity
         for (let [k, tile] of this.tiles) {
-            let pf = tile.getData('prevForce');
-            let f = tile.getData('force');
-            let vz = tile.getData('vz');
+            let pf = tile.prevForce;
+            let f = tile.force;
+            let vz = tile.vz;
             vz += 0.5 * (f + pf) * dt;
             vz *= this.damping;
-            tile.setData('vz', vz);
+            tile.vz = vz;
         }
     }
 
