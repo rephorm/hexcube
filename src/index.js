@@ -41,15 +41,15 @@ class Main extends Phaser.Scene
     cy = 0
 
     grid = new HexGrid(32, 16)
-    maxSize = 20
+    maxSize = 30
     //tiles = new Map()
     tiles = new Array(200*200);
 
     inputDisabled = false
 
     springEnabled = true
-    springConstant = 0.00001;
-    damping = 0.95;
+    springConstant = 0.00004;
+    damping = 0.97;
     forcingFunc
 
     mode = 0
@@ -344,22 +344,32 @@ class Main extends Phaser.Scene
        //console.log('q,r:', q, ',', r, 'tz: ', tz, 'pz: ', this.pz, 'tile: ', tile)
     }
 
-    updateSpringForces(t, seen) {
-        if (t === undefined) return;
-        let i = this.tileIndex(t.hex);
-        if (i < 0 || i >= seen.length || seen[i]) return;
-        let z = t.z;
-        seen[i] = true;
-        for (let n of this.grid.neighbors(t.hex)) {
-            let nt = this.getTile(n);
-            if (nt === undefined) continue;
-            let df = (nt.z - z) * this.springConstant;
-            t.force += df;
-            nt.force -= df;
-            this.updateSpringForces(nt, seen)
-        }
+    updateSpringForces(from) {
+        this.dfsPairs(from, (t, nt) => {
+                let df = (nt.z - t.z) * this.springConstant;
+                t.force += df;
+                nt.force -= df;
+        })
     }
 
+    dfsPairs(fromTile, callback) {
+        let seen = new Array(this.tiles.length);
+        let helper = (tile) => {
+            let i = this.tileIndex(tile.hex);
+            if(i < 0 || i > seen.length || seen[i]) return;
+            seen[i] = true;
+            for (let nHex of this.grid.neighbors(tile.hex)) {
+                let nTile = this.getTile(nHex);
+                if (nTile === undefined) continue
+                let ni = this.tileIndex(nHex);
+                if (i < ni) {
+                    callback(tile, nTile);
+                }
+                helper(nTile);
+            }
+        }
+        helper(fromTile);
+    }
 
     updateTileHeights(t, dt) {
         if (!this.springEnabled) return;
@@ -372,11 +382,13 @@ class Main extends Phaser.Scene
              tile.prevForce = tile.force
           
             tile.z += (tile.vz * dt + 0.5 * tile.prevForce * dt * dt);
-            let frame = Phaser.Math.Clamp(Math.round(tile.z), 0, 16);
+            tile.z = Phaser.Math.Clamp(tile.z, 0, 16);
+            let frame = Math.round(tile.z);
             tile.setFrame(frame);
 
             // Calculate new position dependent force.
             let f = 0;
+            f += this.springConstant * (7 - tile.z) / 4;
             if (this.forcingFunc !== undefined) {
                 f = this.forcingFunc(tile.hex, t);
             }
