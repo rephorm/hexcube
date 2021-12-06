@@ -20,6 +20,9 @@ class Tile extends Phaser.GameObjects.Sprite {
 
         this.z = 8
         this.vz = 0
+        this.force = 0
+        this.prevForce = 0
+
         this.setDepth(hex.r*10 + hex.q)
         this.setFrame(this.z);
     }
@@ -337,8 +340,7 @@ class Main extends Phaser.Scene
         for (let n of this.grid.neighbors(h)) {
             let nt = this.getTile(n);
             if (nt === undefined) continue;
-            let dz = z - nt.z
-            let df = -dz * this.springConstant;
+            let df = (nt.z - z) * this.springConstant;
             t.force += df;
             nt.force -= df;
             this.updateSpringForces(n, nt, seen)
@@ -353,19 +355,10 @@ class Main extends Phaser.Scene
 
         for (let [k, tile] of this.tiles) {
             // Update z using previous velocity and force.
-            let vz = tile.vz;
-            let z = tile.z;
-            let pf = tile.force;
-            if (pf === undefined) pf = 0;
-            tile.prevForce = pf;
-            z += (vz * dt + 0.5 * pf * dt * dt);
-            if (z < 0) z = 0;
-            if (z > 16) z = 16;
-            tile.z = z;
-            if (k == "0,0") {
-                console.log(z)
-            }
-            tile.setFrame(Math.round(z));
+            tile.prevForce = tile.force
+            tile.z += (tile.vz * dt + 0.5 * tile.prevForce * dt * dt);
+            let frame = Phaser.Math.Clamp(Math.round(tile.z), 0, 16);
+            tile.setFrame(frame);
 
             // Calculate new position dependent force.
             let f = 0;
@@ -376,18 +369,16 @@ class Main extends Phaser.Scene
         }
 
         // DFS to calculate spring forces.
+        let t0 = performance.now()
         var tile0 = this.tiles.values().next().value
         var h0 = tile0.hex
         this.updateSpringForces(h0, tile0, seen);
+        //console.log('DFS took', performance.now() - t0, 'ms');
 
         // Update velocity
         for (let [k, tile] of this.tiles) {
-            let pf = tile.prevForce;
-            let f = tile.force;
-            let vz = tile.vz;
-            vz += 0.5 * (f + pf) * dt;
-            vz *= this.damping;
-            tile.vz = vz;
+            tile.vz += 0.5 * (tile.force + tile.prevForce) * dt;
+            tile.vz *= this.damping;
         }
     }
 
