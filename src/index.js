@@ -11,12 +11,11 @@ class Tile extends Phaser.GameObjects.Sprite {
     prevForce
 
     constructor(scene, grid, hex) {
-        super(scene, 0, 0, "hextile");
+        let [x, y] = grid.center(hex);
+        console.log(x, y)
+        super(scene, x, y, 'hextile');
         scene.add.existing(this);
         this.hex = hex;
-
-        let [x, y] = grid.center(hex);
-        this.setPosition(x, y)
 
         this.z = 8
         this.vz = 0
@@ -42,8 +41,9 @@ class Main extends Phaser.Scene
     cy = 0
 
     grid = new HexGrid(32, 16)
-    maxSize = 30
-    tiles = new Map()
+    maxSize = 20
+    //tiles = new Map()
+    tiles = new Array(200*200);
 
     inputDisabled = false
 
@@ -221,7 +221,8 @@ class Main extends Phaser.Scene
         let info = modes[this.mode]
         this.springEnabled = info.springEnabled
         this.forcingFunc = info.forcingFunc
-        for (let [key, tile] of this.tiles) {
+        for (let tile of this.tiles) {
+            if (tile == undefined) continue;
             let hex = tile.hex;
             if (info.animate) {
                 tile.playAfterDelay('raise', info.delay(hex))
@@ -229,7 +230,8 @@ class Main extends Phaser.Scene
                 tile.stop()
             }
         }
-      this.modeText.text = `Mode: ${info.name}`
+
+        this.modeText.text = `Mode: ${info.name}`
     }
     handleMove(info) {
         if (this.inputDisabled) return
@@ -270,24 +272,24 @@ class Main extends Phaser.Scene
     }
 
     updateMap(hex) {
-        let seen = new Map()
-        let toDelete = [] // list of keys
+        let toDelete = [] // list of hexes
         let toAdd = [] // list of hexes
-        for (let [k, tile] of this.tiles) {
+        for (let tile of this.tiles) {
+            if (tile === undefined) continue;
             let ohex = tile.hex;
             if (hex.dist(ohex) > this.maxSize) {
-                toDelete.push(k)
+                toDelete.push(ohex)
             } else {
                 for (let nhex of this.grid.neighbors(ohex)) {
-                    if (this.tiles.get(nhex.key()) === undefined && hex.dist(nhex) <= this.maxSize) {
+                    if (this.getTile(nhex) === undefined && hex.dist(nhex) <= this.maxSize) {
                         toAdd.push(nhex)
                     }
                 }
             }
         }
 
-        for (let key of toDelete) {
-            this.deleteTile(key)
+        for (let hex of toDelete) {
+            this.deleteTile(hex)
         }
 
         for (let nhex of toAdd) {
@@ -295,17 +297,23 @@ class Main extends Phaser.Scene
         }
     }
 
-    deleteTile(key) {
-        var tile = this.tiles.get(key);
+    deleteTile(hex) {
+        let i = this.tileIndex(hex);
+        if (i < 0 || i >= this.tiles.length) return;
+        var tile = this.tiles[i];
         if (tile === undefined) return;
-        this.tiles.delete(key);
+        //console.log("delete", hex.key())
+        this.tiles[i] = undefined;
         tile.destroy();
     }
 
     addTile(hex) {
-        if (this.tiles.get(hex.key()) !== undefined) return;
+        let i = this.tileIndex(hex);
+        if (i < 0 || i >= this.tiles.length) return;
+        if (this.tiles[i] !== undefined) return;
+        //console.log("add", hex.key(), i)
         let tile = new Tile(this, this.grid, hex);
-        this.tiles.set(hex.key(), tile);
+        this.tiles[i] = tile
     }
 
     update(t, dt) {
@@ -333,17 +341,19 @@ class Main extends Phaser.Scene
        //console.log('q,r:', q, ',', r, 'tz: ', tz, 'pz: ', this.pz, 'tile: ', tile)
     }
 
-    updateSpringForces(h, t, seen) {
-        if (seen.has(h.key())) return;
+    updateSpringForces(t, seen) {
+        if (t === undefined) return;
+        let i = this.tileIndex(t.hex);
+        if (i < 0 || i >= seen.length || seen[i]) return;
         let z = t.z;
-        seen.add(h.key());
-        for (let n of this.grid.neighbors(h)) {
+        seen[i] = true;
+        for (let n of this.grid.neighbors(t.hex)) {
             let nt = this.getTile(n);
             if (nt === undefined) continue;
             let df = (nt.z - z) * this.springConstant;
             t.force += df;
             nt.force -= df;
-            this.updateSpringForces(n, nt, seen)
+            this.updateSpringForces(nt, seen)
         }
     }
 
@@ -351,11 +361,13 @@ class Main extends Phaser.Scene
     updateTileHeights(t, dt) {
         if (!this.springEnabled) return;
         // Iterate over all neighboring pairs.
-        let seen = new Set()
+        var first;
 
-        for (let [k, tile] of this.tiles) {
-            // Update z using previous velocity and force.
-            tile.prevForce = tile.force
+        for (let tile of this.tiles) {
+            if (tile === undefined) continue;
+            if (first === undefined) first = tile;
+             tile.prevForce = tile.force
+          
             tile.z += (tile.vz * dt + 0.5 * tile.prevForce * dt * dt);
             let frame = Phaser.Math.Clamp(Math.round(tile.z), 0, 16);
             tile.setFrame(frame);
@@ -370,20 +382,28 @@ class Main extends Phaser.Scene
 
         // DFS to calculate spring forces.
         let t0 = performance.now()
-        var tile0 = this.tiles.values().next().value
-        var h0 = tile0.hex
-        this.updateSpringForces(h0, tile0, seen);
+        let seen = new Array(this.tiles.length)
+        this.updateSpringForces(first, seen);
         //console.log('DFS took', performance.now() - t0, 'ms');
 
         // Update velocity
-        for (let [k, tile] of this.tiles) {
+        for (let tile of this.tiles) {
+            if (tile === undefined) continue;
             tile.vz += 0.5 * (tile.force + tile.prevForce) * dt;
             tile.vz *= this.damping;
         }
     }
 
+    tileIndex(hex) {
+        return (hex.q + 100) * 200 + hex.r + 100; 
+    }
+
     getTile(hex) {
-        return this.tiles.get(hex.key())
+        let i = this.tileIndex(hex);
+        if (i < 0 || i >= this.tiles.length) {
+            return undefined;
+        }
+        return this.tiles[i];
     }
 }
 
