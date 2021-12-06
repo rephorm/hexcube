@@ -274,6 +274,9 @@ class Main extends Phaser.Scene
     updateMap(hex) {
         let toDelete = [] // list of hexes
         let toAdd = [] // list of hexes
+
+        // TODO(rephorm): Fix this to dfs out from hex and add all tiles out to maxSize.
+        // The current form assumes some tile is present, which isn't necessarily the case.
         for (let tile of this.tiles) {
             if (tile === undefined) continue;
             let ohex = tile.hex;
@@ -395,6 +398,7 @@ class Main extends Phaser.Scene
     }
 
     tileIndex(hex) {
+        if (Math.abs(hex.q) >= 100 || Math.abs(hex.r) >= 100) return -1;
         return (hex.q + 100) * 200 + hex.r + 100; 
     }
 
