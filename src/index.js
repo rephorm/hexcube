@@ -410,7 +410,10 @@ class Main extends Phaser.Scene
     }
 
     tileIndex(hex) {
-        if (Math.abs(hex.q) >= 100 || Math.abs(hex.r) >= 100) return -1;
+        if (hex.q < -100 || hex.q >= 100 ||
+            hex.r < -100 || hex.r >= 100) {
+            return -1;
+        }
         return (hex.q + 100) * 200 + hex.r + 100; 
     }
 
